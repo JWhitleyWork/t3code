@@ -525,6 +525,7 @@ function extractToolCallCommand(
   rawInput: unknown,
   title: string | undefined,
   kind: string | undefined,
+  textContent: string | undefined,
 ): string | undefined {
   if (isRecord(rawInput)) {
     const directCommand = normalizeCommandValue(rawInput.command);
@@ -545,7 +546,11 @@ function extractToolCallCommand(
   if (kind !== "execute") {
     return undefined;
   }
-  return extractCommandFromTitle(title);
+  // Hermes leaves rawInput off its terminal calls and shows the command as a
+  // single `$ <command>` content line, which is how Zed renders it.
+  const promptLine =
+    textContent === undefined ? undefined : /^\$ (?<command>[^\n]+)$/u.exec(textContent);
+  return extractCommandFromTitle(title) ?? (promptLine?.groups?.command?.trim() || undefined);
 }
 
 function filePathFromToolValue(value: unknown): string | undefined {
@@ -806,9 +811,9 @@ function makeToolCallState(
   }
   const title = input.title?.trim() || undefined;
   const kind = normalizeToolKind(input.kind);
-  const command = extractToolCallCommand(input.rawInput, title, kind);
   const extractedContent = extractTextContentFromToolCallContent(input.content);
   const textContent = extractedContent.text;
+  const command = extractToolCallCommand(input.rawInput, title, kind, textContent);
   const normalizedTitle =
     title && title.toLowerCase() !== "terminal" && title.toLowerCase() !== "tool call"
       ? title
@@ -903,7 +908,14 @@ export function mergeToolCallState(
 ): AcpToolCallState {
   const nextKind = next.kind ?? (typeof next.data.kind === "string" ? next.data.kind : undefined);
   const kind = nextKind ?? previous?.kind;
-  const title = next.title ?? previous?.title;
+  // ACP updates omit an unchanged title, and the summary derived without it is only a category
+  // label. It must not replace the agent's own title, though it may replace one T3 derived from
+  // input the update has just changed.
+  const keepAgentTitle =
+    next.data.title === undefined &&
+    previous?.title !== undefined &&
+    previous.title === previous.data.title;
+  const title = keepAgentTitle ? previous.title : (next.title ?? previous?.title);
   const status = next.status ?? previous?.status;
   const command = next.command ?? previous?.command;
   const detail = next.detail ?? previous?.detail;
