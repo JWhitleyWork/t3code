@@ -477,6 +477,29 @@ describe("AcpRuntimeModel", () => {
     );
   });
 
+  it("shows a path that a title-less update adds to a read call", () => {
+    const readCall = (title: string) =>
+      parsedToolCall({
+        sessionUpdate: "tool_call",
+        toolCallId: "read-1",
+        title,
+        kind: "read",
+        status: "pending",
+      });
+    const addPath = parsedToolCall({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "read-1",
+      kind: "read",
+      status: "completed",
+      locations: [{ path: "README.md" }],
+    });
+
+    expect(mergeToolCallState(readCall("read_file: README.md"), addPath).title).toBe(
+      "Read README.md",
+    );
+    expect(mergeToolCallState(readCall("Read file"), addPath).title).toBe("Read README.md");
+  });
+
   it("trims padded current mode updates before emitting a mode change", () => {
     const result = parseSessionUpdateEvent({
       sessionId: "session-1",

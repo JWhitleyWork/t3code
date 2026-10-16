@@ -908,18 +908,25 @@ export function mergeToolCallState(
 ): AcpToolCallState {
   const nextKind = next.kind ?? (typeof next.data.kind === "string" ? next.data.kind : undefined);
   const kind = nextKind ?? previous?.kind;
+  const data = mergeToolActivityData(previous?.data, next.data) ?? next.data;
   // ACP updates omit an unchanged title, and the summary derived without it is only a category
-  // label. It must not replace the agent's own title, though it may replace one T3 derived from
-  // input the update has just changed.
-  const keepAgentTitle =
-    next.data.title === undefined &&
-    previous?.title !== undefined &&
-    previous.title === previous.data.title;
-  const title = keepAgentTitle ? previous.title : (next.title ?? previous?.title);
+  // label. Derive the summary again from the agent's own title and the merged data, so a path the
+  // update adds still wins. A title T3 derived from input the update has just changed gives way.
+  const agentTitle =
+    next.data.title === undefined && previous?.title === previous?.data.title
+      ? previous?.title
+      : undefined;
+  const title = agentTitle
+    ? deriveToolActivityPresentation({
+        itemType: canonicalItemTypeFromAcpToolKind(kind),
+        title: agentTitle,
+        data,
+        fallbackSummary: agentTitle,
+      }).summary
+    : (next.title ?? previous?.title);
   const status = next.status ?? previous?.status;
   const command = next.command ?? previous?.command;
   const detail = next.detail ?? previous?.detail;
-  const data = mergeToolActivityData(previous?.data, next.data) ?? next.data;
   return {
     toolCallId: next.toolCallId,
     ...(kind ? { kind } : {}),
