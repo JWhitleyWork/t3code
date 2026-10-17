@@ -1507,6 +1507,10 @@ describe("extractMcpToolCallIdentity", () => {
       "t3-code/delegate_task",
       "delegate_task",
       'delegate_task: {"mode":"async"}',
+      // Kimi retitles on every streamed args chunk with the raw partial JSON,
+      // and middle-truncates args longer than 50 characters.
+      'delegate_task: {"mode":"async","task":"Ru',
+      'delegate_task: {"mode":"async","task":"Ru...cho child-result-42\'"}',
     ]) {
       const toolCall = toolCallFromUpdate({
         sessionUpdate: "tool_call",
