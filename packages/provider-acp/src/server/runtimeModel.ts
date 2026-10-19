@@ -790,6 +790,7 @@ export function canonicalItemTypeFromAcpToolKind(kind: string | undefined): Tool
 
 function makeToolCallState(
   input: {
+    readonly sessionUpdate?: AcpToolCallUpdate["sessionUpdate"];
     readonly toolCallId: string;
     readonly title?: string | null | undefined;
     readonly kind?: EffectAcpSchema.ToolKind | null | undefined;
@@ -812,7 +813,13 @@ function makeToolCallState(
   const kind = normalizeToolKind(input.kind);
   const extractedContent = extractTextContentFromToolCallContent(input.content);
   const textContent = extractedContent.text;
-  const command = extractToolCallCommand(input.rawInput, title, kind, textContent);
+  // Update content is output; initial calls and permission requests can carry a command here.
+  const command = extractToolCallCommand(
+    input.rawInput,
+    title,
+    kind,
+    input.sessionUpdate === "tool_call_update" ? undefined : textContent,
+  );
   const normalizedTitle =
     title && title.toLowerCase() !== "terminal" && title.toLowerCase() !== "tool call"
       ? title
@@ -887,6 +894,7 @@ function parseTypedToolCallState(
 ): AcpToolCallState | undefined {
   return makeToolCallState(
     {
+      sessionUpdate: event.sessionUpdate,
       toolCallId: event.toolCallId,
       title: event.title,
       kind: event.kind,

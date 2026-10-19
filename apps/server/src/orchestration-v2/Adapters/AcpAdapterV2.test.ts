@@ -1832,11 +1832,18 @@ describe("AcpAdapterV2", () => {
                         sessionUpdate: "tool_call_update",
                         toolCallId: call.toolCallId,
                         status: "completed",
+                        ...(call.toolCallId === "terminal" ? { kind: "execute" as const } : {}),
                         ...(call.toolCallId.startsWith("generic-")
                           ? {}
                           : {
                               content: [
-                                { type: "content", content: { type: "text", text: "result" } },
+                                {
+                                  type: "content",
+                                  content: {
+                                    type: "text",
+                                    text: call.toolCallId === "terminal" ? "$ 5.00" : "result",
+                                  },
+                                },
                               ],
                             }),
                       },
@@ -1895,6 +1902,8 @@ describe("AcpAdapterV2", () => {
         title: "Ran command",
         input,
       });
+      const terminal = items.findLast((item) => item.nativeItemRef?.nativeId === "terminal");
+      assert.isTrue(terminal?.type === "command_execution" && terminal.output?.includes("$ 5.00"));
       const expected = [
         command("git --version"),
         command("execute_code: Running Python helper script"),
