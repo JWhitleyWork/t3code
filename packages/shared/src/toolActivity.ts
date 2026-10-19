@@ -408,8 +408,6 @@ export interface ToolActivityPresentation {
   readonly detail?: string | undefined;
 }
 
-// Titles that only name a tool category. Any other title is the agent's own description of the
-// call, which ACP defines as the human-readable label, and is worth more than a category label.
 const CATEGORY_TOOL_TITLES = new Set([
   "terminal",
   "command",

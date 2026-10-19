@@ -546,10 +546,9 @@ function extractToolCallCommand(
   if (kind !== "execute") {
     return undefined;
   }
-  // Hermes leaves rawInput off its terminal calls and shows the command as a
-  // single `$ <command>` content line, which is how Zed renders it.
+  // Some ACP agents put the command in content instead of rawInput. Exclude multiline output.
   const promptLine =
-    textContent === undefined ? undefined : /^\$ (?<command>[^\n]+)$/u.exec(textContent);
+    textContent === undefined ? undefined : /^\$ (?<command>[^\r\n]+)$/u.exec(textContent);
   return extractCommandFromTitle(title) ?? (promptLine?.groups?.command?.trim() || undefined);
 }
 
@@ -909,31 +908,30 @@ export function mergeToolCallState(
   const nextKind = next.kind ?? (typeof next.data.kind === "string" ? next.data.kind : undefined);
   const kind = nextKind ?? previous?.kind;
   const data = mergeToolActivityData(previous?.data, next.data) ?? next.data;
-  // ACP updates omit an unchanged title, and the summary derived without it is only a category
-  // label. Derive the summary again from the agent's own title and the merged data, so a path the
-  // update adds still wins. A title T3 derived from input the update has just changed gives way.
-  const agentTitle =
-    next.data.title === undefined && previous?.title === previous?.data.title
-      ? previous?.title
-      : undefined;
-  const title = agentTitle
-    ? deriveToolActivityPresentation({
-        itemType: canonicalItemTypeFromAcpToolKind(kind),
-        title: agentTitle,
-        data,
-        fallbackSummary: agentTitle,
-      }).summary
-    : (next.title ?? previous?.title);
+  const command =
+    extractToolCallCommand(data.rawInput, undefined, undefined, undefined) ??
+    next.command ??
+    previous?.command;
+  if (command) {
+    data.command = command;
+  }
+  // Sparse updates omit unchanged fields. Re-derive from raw data so output cannot replace
+  // an execute label, and new or cleared paths cannot leave a stale read summary.
+  const presentation = deriveToolActivityPresentation({
+    itemType: canonicalItemTypeFromAcpToolKind(kind),
+    title: typeof data.title === "string" ? data.title : undefined,
+    detail: next.detail ?? previous?.detail,
+    data,
+    fallbackSummary: next.title ?? previous?.title,
+  });
   const status = next.status ?? previous?.status;
-  const command = next.command ?? previous?.command;
-  const detail = next.detail ?? previous?.detail;
   return {
     toolCallId: next.toolCallId,
     ...(kind ? { kind } : {}),
-    ...(title ? { title } : {}),
+    title: presentation.summary,
     ...(status ? { status } : {}),
     ...(command ? { command } : {}),
-    ...(detail ? { detail } : {}),
+    ...(presentation.detail ? { detail: presentation.detail } : {}),
     data,
   };
 }
@@ -1219,8 +1217,8 @@ export function parsePermissionRequest(
   const kind = normalizeToolKind(params.toolCall.kind) ?? "unknown";
   const detail =
     toolCall?.command ??
-    toolCall?.title ??
     toolCall?.detail ??
+    toolCall?.title ??
     (typeof params.sessionId === "string" ? `Session ${params.sessionId}` : undefined);
   return {
     kind,
