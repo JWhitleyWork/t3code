@@ -919,6 +919,9 @@ export function mergeToolCallState(
   const command =
     extractToolCallCommand(data.rawInput, undefined, undefined, undefined) ??
     next.command ??
+    (kind === "execute" && typeof next.data.title === "string"
+      ? extractCommandFromTitle(next.data.title)
+      : undefined) ??
     previous?.command;
   if (command) {
     data.command = command;

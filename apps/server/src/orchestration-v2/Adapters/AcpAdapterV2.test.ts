@@ -1404,9 +1404,13 @@ describe("AcpAdapterV2", () => {
                     {
                       sessionUpdate: "tool_call",
                       toolCallId: "child-later",
-                      title: "Later tool",
+                      title: "Tool",
+                      kind: "other",
                       status: "completed",
-                      _meta: { "cognition.ai/subagent_context": { parentAgentId: "child-a" } },
+                      _meta: {
+                        "cognition.ai/inferenceToolName": "web_fetch",
+                        "cognition.ai/subagent_context": { parentAgentId: "child-a" },
+                      },
                     },
                     {
                       sessionUpdate: "tool_call_update",
@@ -1558,6 +1562,13 @@ describe("AcpAdapterV2", () => {
       );
       assert.equal(parentTools.length, 2);
       assert.equal(parentTools[0]?.title, "Parent tool finished");
+      const childTool = items.find(
+        (item) =>
+          item.threadId === task?.childThreadId &&
+          item.type === "dynamic_tool" &&
+          item.nativeItemRef?.nativeId === "child-a:tool:child-later",
+      );
+      assert.equal(childTool?.title, "web_fetch");
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 
@@ -1772,7 +1783,7 @@ describe("AcpAdapterV2", () => {
         {
           toolCallId: "terminal",
           kind: "execute",
-          title: "terminal: git --version",
+          title: "Terminal",
           content: [{ type: "content", content: { type: "text", text: "$ git --version" } }],
         },
         {
@@ -1858,6 +1869,25 @@ describe("AcpAdapterV2", () => {
                       locations: [{ path: "README.md" }],
                     },
                   });
+                  yield* handler!({
+                    sessionId: "mock-session-1",
+                    update: {
+                      sessionUpdate: "tool_call_update",
+                      toolCallId: "terminal",
+                      title: "Run `git diff`",
+                      status: "in_progress",
+                    },
+                  });
+                  yield* handler!({
+                    sessionId: "mock-session-1",
+                    update: {
+                      sessionUpdate: "tool_call_update",
+                      toolCallId: "terminal",
+                      title: "Run `git diff`",
+                      rawInput: { command: "git status --short" },
+                      status: "completed",
+                    },
+                  });
                   return { stopReason: "end_turn" as const };
                 }),
             }),
@@ -1931,6 +1961,9 @@ describe("AcpAdapterV2", () => {
         expected.map((item, index) => [
           item,
           item,
+          ...(calls[index]?.toolCallId === "terminal"
+            ? [command("git diff"), command("git status --short")]
+            : []),
           ...(calls[index]?.toolCallId === "skill"
             ? [
                 {

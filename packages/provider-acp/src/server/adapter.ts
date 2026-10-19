@@ -4041,7 +4041,8 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 }
                 const key = `${nativeTaskId}:tool:${toolCall.toolCallId}`;
                 const previous = context.tools.get(key);
-                const merged = mergeToolCallState(previous, toolCall);
+                const mergedToolCall = mergeToolCallState(previous, toolCall);
+                const merged = flavor.normalizeToolCall?.(mergedToolCall) ?? mergedToolCall;
                 context.tools.set(key, merged);
                 if (!shouldPersistToolUpdate(context, key, previous, merged, merged.status))
                   continue;
